@@ -149,3 +149,10 @@ button:disabled {
     position: relative;
     overflow: visible; 
 }
+
+#puzzle-container canvas {
+    cursor: grab;
+}
+#puzzle-container canvas:active {
+    cursor: grabbing;
+}

@@ -72,7 +72,6 @@ function createFHDJigsawPuzzle() {
     
     startTimer();
     
-    // progressDisplay 초기화
     progressDisplay.innerText = `0 / ${maxPieces} (0%)`;
 
     const COLUMNS = Math.sqrt(totalPieces);
@@ -88,6 +87,64 @@ function createFHDJigsawPuzzle() {
     const dragLayer = new Konva.Layer(); 
     stage.add(mainLayer);
     stage.add(dragLayer);
+
+    // 🔧 [화면 조작 설정] 바닥 드래그 시 화면 시점 이동(Pan) 활성화
+    stage.draggable(true);
+
+    const scaleBy = 1.25; // 키 입력 시 확대/축소 배율 단위
+    const MIN_SCALE = 1;
+    const MAX_SCALE = 6;
+
+    // 🔧 [화면 조작 함수] 화면 중앙을 기준으로 확대/축소 실행
+    function zoomStage(zoomIn) {
+        const oldScale = stage.scaleX();
+        const center = { x: STAGE_WIDTH / 2, y: STAGE_HEIGHT / 2 };
+
+        const mousePointTo = {
+            x: (center.x - stage.x()) / oldScale,
+            y: (center.y - stage.y()) / oldScale,
+        };
+
+        let newScale = zoomIn ? oldScale * scaleBy : oldScale / scaleBy;
+        newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
+
+        stage.scale({ x: newScale, y: newScale });
+
+        const newPos = {
+            x: center.x - mousePointTo.x * newScale,
+            y: center.y - mousePointTo.y * newScale,
+        };
+
+        if (newScale === 1) {
+            stage.position({ x: 0, y: 0 });
+        } else {
+            stage.position(newPos);
+        }
+        
+        stage.batchDraw();
+    }
+
+    // 🔧 [키보드 이벤트 리스너] 기존 키 리스너 중복 방지를 위해 초기화 후 등록
+    window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
+
+    function handleKeyDown(e) {
+        // 퍼즐 페이지가 아닌 곳에서 입력되거나 인풋 입력 중일 때는 작동 방지
+        if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT') return;
+
+        if (e.key === '+' || e.key === '=') { // '=' 키는 Shift 없이 '+'를 누를 때를 대비
+            e.preventDefault();
+            zoomStage(true);
+        } else if (e.key === '-') {
+            e.preventDefault();
+            zoomStage(false);
+        } else if (e.key === 'Backspace' || e.key === 'Escape') { // 화면 리셋 단축키
+            e.preventDefault();
+            stage.scale({ x: 1, y: 1 });
+            stage.position({ x: 0, y: 0 });
+            stage.batchDraw();
+        }
+    }
 
     const w = BOARD_WIDTH / COLUMNS;
     const h = BOARD_HEIGHT / ROWS;
@@ -127,7 +184,7 @@ function createFHDJigsawPuzzle() {
     });
     mainLayer.add(board);
 
-    // 4. [기능 확장] 완성 시 선명하게 보여줄 테두리 없는 전체 통이미지 (처음엔 opacity 0)
+    // 4. 완성 시 선명하게 보여줄 테두리 없는 전체 통이미지 (처음엔 opacity 0)
     const fullPerfectImage = new Konva.Image({
         x: boardX, y: boardY,
         image: uploadedImage,
@@ -161,8 +218,8 @@ function createFHDJigsawPuzzle() {
     });
     
     const hintLabel = new Konva.Text({
-        x: hintX, y: hintY - 20, text: "💡 클릭 시 메인에 힌트 온/오프",
-        fontSize: 12, fontStyle: 'bold', fill: '#3498db'
+        x: hintX, y: hintY - 20, text: "💡 클릭 시 메인에 힌트 온/오프\n⌨️ 키보드 [ + ] [ - ] 로 화면 확대/축소\n⌨️ [Backspace] 로 크기 초기화",
+        fontSize: 12, fontStyle: 'bold', fill: '#3498db', lineHeight: 1.4
     });
     mainLayer.add(hintImage);
     mainLayer.add(hintLabel);
@@ -183,22 +240,19 @@ function createFHDJigsawPuzzle() {
         mainLayer.batchDraw();
     });
 
-    // 퍼즐 조각 그룹 생성 (나중에 한 번에 페이드아웃 시키기 위해 그룹으로 묶음)
+    // 퍼즐 조각 그룹 생성
     const piecesGroup = new Konva.Group();
     mainLayer.add(piecesGroup);
 
-    // [내부 전용] 진행 상황 업데이트 및 완성 연출 함수
+    // 진행 상황 업데이트 및 완성 연출 함수
     function checkGameProgress() {
         const percent = Math.floor((solvedPieces / maxPieces) * 100);
         progressDisplay.innerText = `${solvedPieces} / ${maxPieces} (${percent}%)`;
         
         if (solvedPieces === maxPieces) {
             clearInterval(timerInterval);
-            
-            // 힌트 가이드가 켜져있다면 연출을 위해 숨김
             transparentGuideImage.visible(false);
 
-            // [핵심 연출] 1. 개별 조각들의 테두리 그룹을 0.8초간 서서히 흐리게(페이드아웃)
             const fadeOutPieces = new Konva.Tween({
                 node: piecesGroup,
                 duration: 0.8,
@@ -206,14 +260,12 @@ function createFHDJigsawPuzzle() {
                 easing: Konva.Easings.EaseInOut
             });
 
-            // [핵심 연출] 2. 경계선이 전혀 없는 통이미지를 0.8초간 서서히 선명하게(페이드인)
             const fadeInFullImage = new Konva.Tween({
                 node: fullPerfectImage,
                 duration: 0.8,
                 opacity: 1,
                 easing: Konva.Easings.EaseInOut,
                 onFinish: () => {
-                    // 애니메이션이 완벽히 끝난 후 알림창 출력
                     setTimeout(() => {
                         alert(`축하합니다!\n⏱ 소요 시간: ${timerDisplay.innerText}`);
                     }, 100);
@@ -243,7 +295,6 @@ function createFHDJigsawPuzzle() {
 
     const tabSize = Math.min(w, h) * 0.22;
 
-// 이 줄을 찾으신 뒤, 여기서부터 아래 코드를 통째로 덮어쓰세요!
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLUMNS; c++) {
 
@@ -303,7 +354,7 @@ function createFHDJigsawPuzzle() {
                 fillPatternOffset: { x: offsetX, y: offsetY },
                 stroke: '#1f1f1f', 
                 strokeWidth: 1.2,
-                strokeScaleEnabled: false, // [추가] 선 두께 왜곡 방지 적용
+                strokeScaleEnabled: false, 
                 draggable: true,
                 shadowColor: '#000', shadowBlur: 3, shadowOffset: { x: 1, y: 1 }, shadowOpacity: 0.3,
                 
@@ -328,7 +379,6 @@ function createFHDJigsawPuzzle() {
             const targetX = boardX + c * w;
             const targetY = boardY + r * h;
 
-            // 🛠️ [수정된 캐싱 코드 위치] 여백(padding)을 넓혀서 경계선이 딱 들어맞게 만듭니다.
             try {
                 const padding = tabSize * 2 + 5; 
                 piece.cache({
@@ -367,6 +417,10 @@ function createFHDJigsawPuzzle() {
 
             piecesGroup.add(piece);
         }
-    } // 이 괄호가 반복문의 끝입니다. 여기까지 덮어쓰시면 됩니다!
+    }
+    
     mainLayer.draw();
 }
+
+// 브라우저 팝업 메뉴 방지 및 드래그 편의를 위한 캔버스 내 우클릭 제한
+document.getElementById('puzzle-container').addEventListener('contextmenu', e => e.preventDefault());
