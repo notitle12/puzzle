@@ -88,14 +88,15 @@ function createFHDJigsawPuzzle() {
     stage.add(mainLayer);
     stage.add(dragLayer);
 
-    // 🔧 [화면 조작 설정] 바닥 드래그 시 화면 시점 이동(Pan) 활성화
+    // 🔧 [화면 조작 설정] 기본적으로 드래그 시 화면 이동 활성화
     stage.draggable(true);
+    let isStageLocked = false; 
 
-    const scaleBy = 1.25; // 키 입력 시 확대/축소 배율 단위
+    const scaleBy = 1.25; 
     const MIN_SCALE = 1;
     const MAX_SCALE = 6;
 
-    // 🔧 [화면 조작 함수] 화면 중앙을 기준으로 확대/축소 실행
+    // 화면 중앙 기준 확대/축소 함수
     function zoomStage(zoomIn) {
         const oldScale = stage.scaleX();
         const center = { x: STAGE_WIDTH / 2, y: STAGE_HEIGHT / 2 };
@@ -124,25 +125,32 @@ function createFHDJigsawPuzzle() {
         stage.batchDraw();
     }
 
-    // 🔧 [키보드 이벤트 리스너] 기존 키 리스너 중복 방지를 위해 초기화 후 등록
+    // 🔧 [키보드 이벤트 핸들러]
     window.removeEventListener('keydown', handleKeyDown);
     window.addEventListener('keydown', handleKeyDown);
 
     function handleKeyDown(e) {
-        // 퍼즐 페이지가 아닌 곳에서 입력되거나 인풋 입력 중일 때는 작동 방지
         if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT') return;
 
-        if (e.key === '+' || e.key === '=') { // '=' 키는 Shift 없이 '+'를 누를 때를 대비
+        const key = e.key.toLowerCase();
+
+        if (e.key === '+' || e.key === '=') { 
             e.preventDefault();
             zoomStage(true);
         } else if (e.key === '-') {
             e.preventDefault();
             zoomStage(false);
-        } else if (e.key === 'Backspace' || e.key === 'Escape') { // 화면 리셋 단축키
+        } else if (e.key === 'Backspace' || e.key === 'Escape') { 
             e.preventDefault();
             stage.scale({ x: 1, y: 1 });
             stage.position({ x: 0, y: 0 });
             stage.batchDraw();
+        } else if (key === 'l') { 
+            e.preventDefault();
+            isStageLocked = !isStageLocked;
+            stage.draggable(!isStageLocked); 
+            updateHintLabel(); 
+            mainLayer.batchDraw();
         }
     }
 
@@ -184,7 +192,7 @@ function createFHDJigsawPuzzle() {
     });
     mainLayer.add(board);
 
-    // 4. 완성 시 선명하게 보여줄 테두리 없는 전체 통이미지 (처음엔 opacity 0)
+    // 4. 완성 시 통이미지
     const fullPerfectImage = new Konva.Image({
         x: boardX, y: boardY,
         image: uploadedImage,
@@ -207,7 +215,7 @@ function createFHDJigsawPuzzle() {
 
     // 우측 상단 미니 예시 이미지 가이드
     const hintX = STAGE_WIDTH - 240 - 40; 
-    const hintY = 40;
+    const hintY = 85; 
     
     const hintImage = new Konva.Image({
         x: hintX, y: hintY, image: uploadedImage,
@@ -218,11 +226,22 @@ function createFHDJigsawPuzzle() {
     });
     
     const hintLabel = new Konva.Text({
-        x: hintX, y: hintY - 20, text: "💡 클릭 시 메인에 힌트 온/오프\n⌨️ 키보드 [ + ] [ - ] 로 화면 확대/축소\n⌨️ [Backspace] 로 크기 초기화",
+        x: hintX, y: hintY - 65, 
         fontSize: 12, fontStyle: 'bold', fill: '#3498db', lineHeight: 1.4
     });
     mainLayer.add(hintImage);
     mainLayer.add(hintLabel);
+
+    // 현재 락 상태를 텍스트에 반영하는 함수
+    function updateHintLabel() {
+        const lockStatus = isStageLocked ? "🔒 화면 잠금" : "🔓 이동 가능";
+        hintLabel.text(
+            `💡 클릭 시 메인에 힌트 온/오프\n` +
+            `⌨️ [ + ] [ - ] 확대/축소  |  [Backspace] 크기 초기화\n` +
+            `⌨️ [ L ] 화면 잠금 토글 상태: ${lockStatus}`
+        );
+    }
+    updateHintLabel(); 
 
     hintImage.on('mouseenter', () => { stage.container().style.cursor = 'pointer'; });
     hintImage.on('mouseleave', () => { stage.container().style.cursor = 'default'; });
@@ -244,7 +263,6 @@ function createFHDJigsawPuzzle() {
     const piecesGroup = new Konva.Group();
     mainLayer.add(piecesGroup);
 
-    // 진행 상황 업데이트 및 완성 연출 함수
     function checkGameProgress() {
         const percent = Math.floor((solvedPieces / maxPieces) * 100);
         progressDisplay.innerText = `${solvedPieces} / ${maxPieces} (${percent}%)`;
@@ -358,10 +376,22 @@ function createFHDJigsawPuzzle() {
                 draggable: true,
                 shadowColor: '#000', shadowBlur: 3, shadowOffset: { x: 1, y: 1 }, shadowOpacity: 0.3,
                 
+                // 🔧 [수정] 조각이 화면 비율변화나 좌표이동에 구애받지 않고 물리적인 회색 점선 캔버스 바깥으로 못 나가게 고정
                 dragBoundFunc: function(pos) {
-                    let newX = Math.max(10, Math.min(pos.x, STAGE_WIDTH - w - 10));
-                    let newY = Math.max(10, Math.min(pos.y, STAGE_HEIGHT - h - 10));
-                    return { x: newX, y: newY };
+                    const currentScale = stage.scaleX();
+                    const stageX = stage.x();
+                    const stageY = stage.y();
+
+                    // 화면 전체 절대 좌표 기준 최소/최대 범위 제한 연산
+                    let minAbsX = stageX + 10 * currentScale;
+                    let maxAbsX = stageX + (STAGE_WIDTH - w - 10) * currentScale;
+                    let minAbsY = stageY + 10 * currentScale;
+                    let maxAbsY = stageY + (STAGE_HEIGHT - h - 10) * currentScale;
+
+                    let clampedX = Math.max(minAbsX, Math.min(pos.x, maxAbsX));
+                    let clampedY = Math.max(minAbsY, Math.min(pos.y, maxAbsY));
+
+                    return { x: clampedX, y: clampedY };
                 }
             });
 
@@ -422,5 +452,4 @@ function createFHDJigsawPuzzle() {
     mainLayer.draw();
 }
 
-// 브라우저 팝업 메뉴 방지 및 드래그 편의를 위한 캔버스 내 우클릭 제한
 document.getElementById('puzzle-container').addEventListener('contextmenu', e => e.preventDefault());
