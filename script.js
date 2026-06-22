@@ -125,7 +125,7 @@ function createFHDJigsawPuzzle() {
         stage.batchDraw();
     }
 
-    // 🔧 [키보드 이벤트 핸들러]
+    // 🔧 [키보드 이벤트 핸들러] 영문 l, 한글 ㅣ 입력 시 모두 대응하도록 수정
     window.removeEventListener('keydown', handleKeyDown);
     window.addEventListener('keydown', handleKeyDown);
 
@@ -145,7 +145,8 @@ function createFHDJigsawPuzzle() {
             stage.scale({ x: 1, y: 1 });
             stage.position({ x: 0, y: 0 });
             stage.batchDraw();
-        } else if (key === 'l') { 
+        } else if (key === 'l' || e.key === 'ㅣ' || e.code === 'KeyL') { 
+            // 🔧 [핵심 수정] e.code === 'KeyL'을 추가해 키보드 자판의 'L' 위치를 누르면 한/영 상관없이 무조건 락 기능 작동
             e.preventDefault();
             isStageLocked = !isStageLocked;
             stage.draggable(!isStageLocked); 
@@ -207,7 +208,7 @@ function createFHDJigsawPuzzle() {
         x: boardX, y: boardY,
         image: uploadedImage,
         width: BOARD_WIDTH, height: BOARD_HEIGHT,
-        opacity: 0.25, 
+        opacity: 0.45, 
         visible: false,
         listening: false
     });
@@ -236,9 +237,9 @@ function createFHDJigsawPuzzle() {
     function updateHintLabel() {
         const lockStatus = isStageLocked ? "🔒 화면 잠금" : "🔓 이동 가능";
         hintLabel.text(
-            `💡 클릭 시 메인에 힌트 온/오프\n` +
+            `💡 사진 클릭 시 메인에 힌트 온/오프\n` +
             `⌨️ [ + ] [ - ] 확대/축소  |  [Backspace] 크기 초기화\n` +
-            `⌨️ [ L ] 화면 잠금 토글 상태: ${lockStatus}`
+            `⌨️ [ L / ㅣ ] 화면 잠금 토글 상태: ${lockStatus}`
         );
     }
     updateHintLabel(); 
@@ -376,13 +377,11 @@ function createFHDJigsawPuzzle() {
                 draggable: true,
                 shadowColor: '#000', shadowBlur: 3, shadowOffset: { x: 1, y: 1 }, shadowOpacity: 0.3,
                 
-                // 🔧 [수정] 조각이 화면 비율변화나 좌표이동에 구애받지 않고 물리적인 회색 점선 캔버스 바깥으로 못 나가게 고정
                 dragBoundFunc: function(pos) {
                     const currentScale = stage.scaleX();
                     const stageX = stage.x();
                     const stageY = stage.y();
 
-                    // 화면 전체 절대 좌표 기준 최소/최대 범위 제한 연산
                     let minAbsX = stageX + 10 * currentScale;
                     let maxAbsX = stageX + (STAGE_WIDTH - w - 10) * currentScale;
                     let minAbsY = stageY + 10 * currentScale;
