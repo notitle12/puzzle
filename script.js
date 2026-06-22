@@ -215,7 +215,7 @@ function createFHDJigsawPuzzle() {
                 onFinish: () => {
                     // 애니메이션이 완벽히 끝난 후 알림창 출력
                     setTimeout(() => {
-                        alert(`축하합니다! 퍼즐을 완벽하게 해결했습니다!\n⏱ 소요 시간: ${timerDisplay.innerText}`);
+                        alert(`축하합니다!\n⏱ 소요 시간: ${timerDisplay.innerText}`);
                     }, 100);
                 }
             });
