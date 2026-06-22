@@ -1,0 +1,3 @@
+# 운영체제 생성 파일 제외
+.DS_Store
+Thumbs.db

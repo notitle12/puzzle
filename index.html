@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>퍼즐</title>
+    <script src="https://unpkg.com/konva@9.2.0/konva.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <h1>🧩 PUZZLE</h1>
+        <div id="controls">
+            <label for="difficultySelect">난이도: </label>
+            <select id="difficultySelect">
+                <option value="16">쉬움 (4 x 4 = 16조각)</option>
+                <option value="36">보통 (6 x 6 = 36조각)</option>
+                <option value="64">어려움 (8 x 8 = 64조각)</option>
+                <option value="144" selected>매우 어려움 (12 x 12 = 144조각)</option>
+                <option value="400">챌린지 (20 x 20 = 400조각)</option>
+            </select>
+
+            <span class="divider">|</span>
+
+            <input type="file" id="imageUpload" accept="image/*">
+            <button id="startBtn" disabled>퍼즐 시작하기</button>
+
+            <span class="divider">|</span>
+
+            <div id="status-panel">
+                <div class="stat-box">⏱ 시간: <span id="timerDisplay">00:00</span></div>
+                <div class="stat-box"> 진행도: <span id="progressDisplay">0 / 0 (0%)</span></div>
+            </div>
+        </div>
+
+<div id="gallery">
+            <p>추천 이미지 선택: </p>
+            <img src="image/sample1.webp" class="gallery-img" alt="김뭉글">
+            <!-- <img src="image/sample2.webp" class="gallery-img" alt="샘플 이미지 2">
+            <img src="image/sample3.webp" class="gallery-img" alt="샘플 이미지 3"> -->
+        </div>
+    </header>
+
+    <main id="puzzle-container"></main>
+
+    <script src="script.js"></script>
+</body>
+</html>
