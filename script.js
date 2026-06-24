@@ -5,7 +5,24 @@ const galleryImages = document.querySelectorAll('.gallery-img');
 const timerDisplay = document.getElementById('timerDisplay');
 const progressDisplay = document.getElementById('progressDisplay');
 
+// 모달 관련 변수 선언
+const modal = document.getElementById('imageModal');
+const modalImage = document.getElementById('modalImage');
+const modalSelectBtn = document.getElementById('modalSelectBtn');
+const modalCloseBtn = document.getElementById('modalCloseBtn');
+const modalStreamerLink = document.getElementById('modalStreamerLink');
+let selectedTempImage = null;
+
+// 저장 및 불러오기 관련 변수
+const saveBtn = document.getElementById('saveBtn');
+const loadBtn = document.getElementById('loadBtn');
+let currentStage = null; 
+let horizontalEdges = [];
+let verticalEdges = [];
+
 let uploadedImage = new Image();
+
+let isGamePlaying = false; // 💡 게임 진행 상태를 체크하는 변수
 
 const BOARD_WIDTH = 960;  
 const BOARD_HEIGHT = 540;
@@ -17,6 +34,7 @@ let secondsElapsed = 0;
 let solvedPieces = 0;
 let maxPieces = 0;
 
+// 첨부파일 업로드 시
 imageUpload.addEventListener('change', (e) => {
     galleryImages.forEach(img => img.classList.remove('selected'));
     const reader = new FileReader();
@@ -27,23 +45,65 @@ imageUpload.addEventListener('change', (e) => {
     reader.readAsDataURL(e.target.files[0]);
 });
 
+// 👇 기존 갤러리 클릭 이벤트를 아래 코드로 완전히 교체하세요.
 galleryImages.forEach(img => {
     img.addEventListener('click', (e) => {
-        galleryImages.forEach(i => i.classList.remove('selected'));
-        e.target.classList.add('selected');
-        imageUpload.value = "";
-        uploadedImage.crossOrigin = "Anonymous"; 
-        uploadedImage.src = e.target.src;
-        uploadedImage.onload = () => { startBtn.disabled = false; };
+        modal.style.display = 'flex';
+        modalImage.src = e.target.src;
+        selectedTempImage = e.target;
+        
+        // 💡 핵심 근거: 게임 중이면 [선택] 버튼을 숨겨서 덮어씌우기를 원천 차단
+        if (isGamePlaying) {
+            modalSelectBtn.style.display = 'none';
+        } else {
+            modalSelectBtn.style.display = 'inline-block';
+        }
+        
+        if(e.target.dataset.url) {
+            modalStreamerLink.href = e.target.dataset.url;
+            modalStreamerLink.style.display = 'flex'; 
+        } else {
+            modalStreamerLink.style.display = 'none'; 
+        }
     });
 });
 
-startBtn.addEventListener('click', createFHDJigsawPuzzle);
+// 모달 닫기 버튼
+modalCloseBtn.addEventListener('click', () => {
+    modal.style.display = 'none';
+    selectedTempImage = null;
+});
+
+// 모달 배경 클릭 시 닫기
+window.addEventListener('click', (e) => {
+    if (e.target === modal) {
+        modal.style.display = 'none';
+        selectedTempImage = null;
+    }
+});
+
+// 모달 선택 버튼 (실제 이미지 적용)
+modalSelectBtn.addEventListener('click', () => {
+    if (selectedTempImage) {
+        galleryImages.forEach(i => i.classList.remove('selected'));
+        selectedTempImage.classList.add('selected');
+        
+        imageUpload.value = "";
+        uploadedImage.crossOrigin = "Anonymous"; 
+        uploadedImage.src = selectedTempImage.src;
+        
+        uploadedImage.onload = () => { startBtn.disabled = false; };
+    }
+    modal.style.display = 'none'; 
+});
+
+// 퍼즐 시작 버튼
+startBtn.addEventListener('click', () => createFHDJigsawPuzzle(null));
 
 function startTimer() {
     clearInterval(timerInterval);
-    secondsElapsed = 0;
-    timerDisplay.innerText = "00:00";
+    // 새로 시작이 아닌 불러오기일 경우, 기존 시간을 이어서 진행
+    timerDisplay.innerText = `${String(Math.floor(secondsElapsed / 60)).padStart(2, '0')}:${String(secondsElapsed % 60).padStart(2, '0')}`;
     
     timerInterval = setInterval(() => {
         secondsElapsed++;
@@ -53,26 +113,27 @@ function startTimer() {
     }, 1000);
 }
 
-function updateProgress() {
-    const percent = Math.floor((solvedPieces / maxPieces) * 100);
-    progressDisplay.innerText = `${solvedPieces} / ${maxPieces} (${percent}%)`;
-    
-    if (solvedPieces === maxPieces) {
-        clearInterval(timerInterval);
-        alert(`축하합니다!(소요 시간: ${timerDisplay.innerText})`);
-    }
-}
-
-function createFHDJigsawPuzzle() {
+function createFHDJigsawPuzzle(saveData = null) {
     document.getElementById('puzzle-container').innerHTML = '';
 
-    const totalPieces = parseInt(difficultySelect.value);
+    const totalPieces = saveData ? saveData.difficulty : parseInt(difficultySelect.value);
     maxPieces = totalPieces;
-    solvedPieces = 0;
+    solvedPieces = saveData ? saveData.solvedPieces : 0;
+    secondsElapsed = saveData ? saveData.secondsElapsed : 0;
     
     startTimer();
     
-    progressDisplay.innerText = `0 / ${maxPieces} (0%)`;
+// 👇 게임 시작 시 세팅 수정
+    isGamePlaying = true; // 게임 상태 켜기
+    imageUpload.disabled = true;
+    difficultySelect.disabled = true;
+    startBtn.disabled = true;
+    if (saveBtn) saveBtn.disabled = false;
+
+    // galleryImages.forEach(img => img.style.pointerEvents = 'none');
+    
+    const percent = Math.floor((solvedPieces / maxPieces) * 100);
+    progressDisplay.innerText = `${solvedPieces} / ${maxPieces} (${percent}%)`;
 
     const COLUMNS = Math.sqrt(totalPieces);
     const ROWS = Math.sqrt(totalPieces);
@@ -83,12 +144,13 @@ function createFHDJigsawPuzzle() {
         height: STAGE_HEIGHT
     });
     
+    currentStage = stage;
+    
     const mainLayer = new Konva.Layer(); 
     const dragLayer = new Konva.Layer(); 
     stage.add(mainLayer);
     stage.add(dragLayer);
 
-    // 🔧 [화면 조작 설정] 기본적으로 드래그 시 화면 이동 활성화
     stage.draggable(true);
     let isStageLocked = false; 
 
@@ -96,7 +158,6 @@ function createFHDJigsawPuzzle() {
     const MIN_SCALE = 1;
     const MAX_SCALE = 6;
 
-    // 화면 중앙 기준 확대/축소 함수
     function zoomStage(zoomIn) {
         const oldScale = stage.scaleX();
         const center = { x: STAGE_WIDTH / 2, y: STAGE_HEIGHT / 2 };
@@ -125,7 +186,6 @@ function createFHDJigsawPuzzle() {
         stage.batchDraw();
     }
 
-    // 🔧 [키보드 이벤트 핸들러] 영문 l, 한글 ㅣ 입력 시 모두 대응하도록 수정
     window.removeEventListener('keydown', handleKeyDown);
     window.addEventListener('keydown', handleKeyDown);
 
@@ -146,7 +206,6 @@ function createFHDJigsawPuzzle() {
             stage.position({ x: 0, y: 0 });
             stage.batchDraw();
         } else if (key === 'l' || e.key === 'ㅣ' || e.code === 'KeyL') { 
-            // 🔧 [핵심 수정] e.code === 'KeyL'을 추가해 키보드 자판의 'L' 위치를 누르면 한/영 상관없이 무조건 락 기능 작동
             e.preventDefault();
             isStageLocked = !isStageLocked;
             stage.draggable(!isStageLocked); 
@@ -157,12 +216,10 @@ function createFHDJigsawPuzzle() {
 
     const w = BOARD_WIDTH / COLUMNS;
     const h = BOARD_HEIGHT / ROWS;
-
     const boardX = (STAGE_WIDTH - BOARD_WIDTH) / 2; 
     const boardY = (STAGE_HEIGHT - BOARD_HEIGHT) / 2; 
     const framePadding = 12; 
 
-    // 1. 외곽 프레임
     const outerFrame = new Konva.Rect({
         x: boardX - framePadding, y: boardY - framePadding,
         width: BOARD_WIDTH + (framePadding * 2), height: BOARD_HEIGHT + (framePadding * 2),
@@ -175,7 +232,6 @@ function createFHDJigsawPuzzle() {
     });
     mainLayer.add(outerFrame);
 
-    // 2. 안쪽 프레임 테두리선
     const innerFrameLine = new Konva.Rect({
         x: boardX - 3, y: boardY - 3,
         width: BOARD_WIDTH + 6, height: BOARD_HEIGHT + 6,
@@ -184,7 +240,6 @@ function createFHDJigsawPuzzle() {
     });
     mainLayer.add(innerFrameLine);
 
-    // 3. 퍼즐 안쪽 검은색 바닥판
     const board = new Konva.Rect({
         x: boardX, y: boardY,
         width: BOARD_WIDTH, height: BOARD_HEIGHT,
@@ -193,7 +248,6 @@ function createFHDJigsawPuzzle() {
     });
     mainLayer.add(board);
 
-    // 4. 완성 시 통이미지
     const fullPerfectImage = new Konva.Image({
         x: boardX, y: boardY,
         image: uploadedImage,
@@ -203,7 +257,6 @@ function createFHDJigsawPuzzle() {
     });
     mainLayer.add(fullPerfectImage);
 
-    // 5. 반투명 가이드 오버레이 (힌트용)
     const transparentGuideImage = new Konva.Image({
         x: boardX, y: boardY,
         image: uploadedImage,
@@ -214,7 +267,6 @@ function createFHDJigsawPuzzle() {
     });
     mainLayer.add(transparentGuideImage);
 
-    // 우측 상단 미니 예시 이미지 가이드
     const hintX = STAGE_WIDTH - 240 - 40; 
     const hintY = 85; 
     
@@ -233,7 +285,6 @@ function createFHDJigsawPuzzle() {
     mainLayer.add(hintImage);
     mainLayer.add(hintLabel);
 
-    // 현재 락 상태를 텍스트에 반영하는 함수
     function updateHintLabel() {
         const lockStatus = isStageLocked ? "🔒 화면 잠금" : "🔓 이동 가능";
         hintLabel.text(
@@ -260,7 +311,6 @@ function createFHDJigsawPuzzle() {
         mainLayer.batchDraw();
     });
 
-    // 퍼즐 조각 그룹 생성
     const piecesGroup = new Konva.Group();
     mainLayer.add(piecesGroup);
 
@@ -271,6 +321,15 @@ function createFHDJigsawPuzzle() {
         if (solvedPieces === maxPieces) {
             clearInterval(timerInterval);
             transparentGuideImage.visible(false);
+
+            // 👇 게임 종료 시 세팅 수정
+            isGamePlaying = false; // 게임 상태 끄기
+            imageUpload.disabled = false;
+            difficultySelect.disabled = false;
+            startBtn.disabled = false;
+            if (saveBtn) saveBtn.disabled = true;
+
+            // galleryImages.forEach(img => img.style.pointerEvents = 'auto');
 
             const fadeOutPieces = new Konva.Tween({
                 node: piecesGroup,
@@ -296,19 +355,23 @@ function createFHDJigsawPuzzle() {
         }
     }
 
-    let horizontalEdges = [];
-    let verticalEdges = [];
-
-    for (let r = 0; r <= ROWS; r++) {
-        horizontalEdges[r] = [];
-        for (let c = 0; c < COLUMNS; c++) {
-            horizontalEdges[r][c] = (r === 0 || r === ROWS) ? 0 : (Math.random() > 0.5 ? 1 : -1);
+    if (saveData) {
+        horizontalEdges = saveData.horizontalEdges;
+        verticalEdges = saveData.verticalEdges;
+    } else {
+        horizontalEdges = [];
+        verticalEdges = [];
+        for (let r = 0; r <= ROWS; r++) {
+            horizontalEdges[r] = [];
+            for (let c = 0; c < COLUMNS; c++) {
+                horizontalEdges[r][c] = (r === 0 || r === ROWS) ? 0 : (Math.random() > 0.5 ? 1 : -1);
+            }
         }
-    }
-    for (let r = 0; r < ROWS; r++) {
-        verticalEdges[r] = [];
-        for (let c = 0; c <= COLUMNS; c++) {
-            verticalEdges[r][c] = (c === 0 || c === COLUMNS) ? 0 : (Math.random() > 0.5 ? 1 : -1);
+        for (let r = 0; r < ROWS; r++) {
+            verticalEdges[r] = [];
+            for (let c = 0; c <= COLUMNS; c++) {
+                verticalEdges[r][c] = (c === 0 || c === COLUMNS) ? 0 : (Math.random() > 0.5 ? 1 : -1);
+            }
         }
     }
 
@@ -316,13 +379,13 @@ function createFHDJigsawPuzzle() {
 
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLUMNS; c++) {
-
             const scaleX = BOARD_WIDTH / uploadedImage.width;
             const scaleY = BOARD_HEIGHT / uploadedImage.height;
             const offsetX = (c * w) / scaleX;
             const offsetY = (r * h) / scaleY;
 
             const piece = new Konva.Shape({
+                name: 'puzzlePiece',
                 x: 0, y: 0,
                 sceneFunc: function(context, shape) {
                     context.beginPath();
@@ -394,16 +457,37 @@ function createFHDJigsawPuzzle() {
                 }
             });
 
-            let randomX;
-            if (Math.random() > 0.5) {
-                randomX = 10 + Math.random() * (boardX - 80 - w);
+            piece.setAttr('row', r);
+            piece.setAttr('col', c);
+            piece.setAttr('isSolved', false);
+
+            if (saveData) {
+                const savedPiece = saveData.pieces.find(p => p.row === r && p.col === c);
+                if (savedPiece) {
+                    piece.position({ x: savedPiece.x, y: savedPiece.y });
+                    piecesGroup.add(piece);
+                    
+                    if (savedPiece.isSolved) {
+                        piece.draggable(false);
+                        piece.stroke('#27ae60');
+                        piece.shadowOpacity(0);
+                        piece.setAttr('isSolved', true);
+                        piece.zIndex(fullPerfectImage.zIndex() + 1); 
+                    }
+                }
             } else {
-                const minRightX = boardX + BOARD_WIDTH + 40;
-                const maxRightX = STAGE_WIDTH - w - 20; 
-                randomX = (maxRightX > minRightX) ? minRightX + Math.random() * (maxRightX - minRightX) : minRightX;
+                let randomX;
+                if (Math.random() > 0.5) {
+                    randomX = 10 + Math.random() * (boardX - 80 - w);
+                } else {
+                    const minRightX = boardX + BOARD_WIDTH + 40;
+                    const maxRightX = STAGE_WIDTH - w - 20; 
+                    randomX = (maxRightX > minRightX) ? minRightX + Math.random() * (maxRightX - minRightX) : minRightX;
+                }
+                const randomY = 40 + Math.random() * (STAGE_HEIGHT - 120 - h);
+                piece.position({ x: randomX, y: randomY });
+                piecesGroup.add(piece);
             }
-            const randomY = 40 + Math.random() * (STAGE_HEIGHT - 120 - h);
-            piece.position({ x: randomX, y: randomY });
 
             const targetX = boardX + c * w;
             const targetY = boardY + r * h;
@@ -431,6 +515,7 @@ function createFHDJigsawPuzzle() {
                     piece.stroke('#27ae60'); 
                     piece.shadowOpacity(0);
                     
+                    piece.setAttr('isSolved', true); 
                     piece.moveTo(piecesGroup);
                     piece.zIndex(fullPerfectImage.zIndex() + 1); 
                     
@@ -443,8 +528,6 @@ function createFHDJigsawPuzzle() {
                 dragLayer.draw();
                 mainLayer.batchDraw();
             });
-
-            piecesGroup.add(piece);
         }
     }
     
@@ -452,3 +535,61 @@ function createFHDJigsawPuzzle() {
 }
 
 document.getElementById('puzzle-container').addEventListener('contextmenu', e => e.preventDefault());
+
+// 💾 게임 저장 기능
+if (saveBtn) {
+    saveBtn.addEventListener('click', () => {
+        if (!currentStage) return;
+
+        const piecesData = currentStage.find('.puzzlePiece').map(p => ({
+            row: p.getAttr('row'),
+            col: p.getAttr('col'),
+            x: p.x(),
+            y: p.y(),
+            isSolved: p.getAttr('isSolved')
+        }));
+
+        const saveData = {
+            imageSrc: uploadedImage.src,         
+            difficulty: maxPieces,               
+            secondsElapsed: secondsElapsed,      
+            solvedPieces: solvedPieces,          
+            horizontalEdges: horizontalEdges,    
+            verticalEdges: verticalEdges,
+            pieces: piecesData                   
+        };
+
+        try {
+            localStorage.setItem('myPuzzleSave', JSON.stringify(saveData));
+            alert("현재 진행 상황이 저장되었습니다! 💾\n(브라우저를 껐다 켜도 불러올 수 있습니다)");
+        } catch (e) {
+            alert("저장 공간이 부족합니다! 직접 첨부한 파일 용량이 너무 큽니다.");
+        }
+    });
+}
+
+// 📂 게임 불러오기 기능
+if (loadBtn) {
+    loadBtn.addEventListener('click', () => {
+        const savedString = localStorage.getItem('myPuzzleSave');
+        if (!savedString) {
+            alert("저장된 게임 데이터가 없습니다.");
+            return;
+        }
+
+        if (confirm("저장된 게임을 불러오시겠습니까?\n(현재 진행 중인 상태는 사라집니다)")) {
+            const saveData = JSON.parse(savedString);
+            
+            difficultySelect.value = saveData.difficulty;
+            galleryImages.forEach(i => i.classList.remove('selected'));
+            imageUpload.value = "";
+            
+            uploadedImage.crossOrigin = "Anonymous";
+            uploadedImage.src = saveData.imageSrc;
+            
+            uploadedImage.onload = () => {
+                createFHDJigsawPuzzle(saveData);
+            };
+        }
+    });
+}
